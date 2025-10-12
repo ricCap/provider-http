@@ -77,6 +77,26 @@ var (
 	ProviderConfigGroupVersionKind = SchemeGroupVersion.WithKind(ProviderConfigKind)
 )
 
+// GetUsers returns the number of users of this ProviderConfig.
+func (pc *ProviderConfig) GetUsers() int64 {
+	return pc.Status.Users
+}
+
+// SetUsers sets the number of users of this ProviderConfig.
+func (pc *ProviderConfig) SetUsers(i int64) {
+	pc.Status.Users = i
+}
+
+// GetCondition returns the condition for the given ConditionType if it exists.
+func (pc *ProviderConfig) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
+	return pc.Status.GetCondition(ct)
+}
+
+// SetConditions sets the supplied conditions, replacing any existing conditions of the same type.
+func (pc *ProviderConfig) SetConditions(c ...xpv1.Condition) {
+	pc.Status.SetConditions(c...)
+}
+
 func init() {
 	SchemeBuilder.Register(&ProviderConfig{}, &ProviderConfigList{})
 }

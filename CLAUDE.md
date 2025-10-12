@@ -115,3 +115,6 @@ Uses Make with Crossplane's standard build submodule:
 - Crossplane runtime: v2.0.0
 - Uses controller-runtime for Kubernetes controller implementation
 - JQ library integration for response processing: github.com/itchyny/gojq
+
+## Memories
+- Use `make run` to test whether the controller starts as expected

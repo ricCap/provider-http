@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 )
 
 // +kubebuilder:object:root=true
@@ -82,6 +83,15 @@ func (p *ProviderConfigUsage) GetResourceReference() xpv1.TypedReference {
 // SetResourceReference sets the resource reference for this ProviderConfigUsage.
 func (p *ProviderConfigUsage) SetResourceReference(r xpv1.TypedReference) {
 	p.ResourceReference = r
+}
+
+// GetItems returns the list of provider config usages.
+func (pcul *ProviderConfigUsageList) GetItems() []resource.ProviderConfigUsage {
+	items := make([]resource.ProviderConfigUsage, len(pcul.Items))
+	for i := range pcul.Items {
+		items[i] = &pcul.Items[i]
+	}
+	return items
 }
 
 func init() {
