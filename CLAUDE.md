@@ -80,6 +80,21 @@ The project maintains v1alpha1 and v1alpha2 APIs with the following progression:
 ### HTTP Client
 - **internal/clients/http/** - Centralized HTTP client with timeout, TLS, and authentication support
 
+### Namespaced vs Non-Namespaced Resources
+
+**CRITICAL**: The namespaced and non-namespaced resources MUST be functionally equivalent:
+
+- **NamespacedRequest** and **Request** must have identical functionality except for scope (namespace vs cluster)
+- **NamespacedDisposableRequest** and **DisposableRequest** must have identical functionality except for scope
+- Both versions must support the same:
+  - HTTP CRUD operations and lifecycle management
+  - Secret injection and data transformation capabilities  
+  - Response processing and JQ filtering
+  - Status handling and error management
+  - Test coverage and validation
+
+When making changes to one resource type, always ensure the corresponding namespaced/non-namespaced version receives identical updates. This ensures users can choose between namespace-scoped and cluster-scoped resources based on their access control needs without sacrificing functionality.
+
 ## Testing Strategy
 
 Tests are co-located with source files using Go conventions:

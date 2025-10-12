@@ -1,6 +1,8 @@
 package v1alpha2
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -39,6 +41,6 @@ func (d *NamespacedDisposableRequest) SetRequestDetails(url, method, body string
 	d.Status.RequestDetails.Method = method
 }
 
-func (d *NamespacedDisposableRequest) SetLastReconcileTime(t metav1.Time) {
-	d.Status.LastReconcileTime = t
+func (d *NamespacedDisposableRequest) SetLastReconcileTime() {
+	d.Status.LastReconcileTime = metav1.NewTime(time.Now())
 }

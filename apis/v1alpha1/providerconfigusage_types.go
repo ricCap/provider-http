@@ -65,23 +65,23 @@ var (
 // GetProviderConfigReference returns the provider config reference for this ProviderConfigUsage.
 func (p *ProviderConfigUsage) GetProviderConfigReference() xpv1.ProviderConfigReference {
 	return xpv1.ProviderConfigReference{
-		Name: p.ProviderConfigUsage.ProviderConfigReference.Name,
+		Name: p.ProviderConfigReference.Name,
 	}
 }
 
 // SetProviderConfigReference sets the provider config reference for this ProviderConfigUsage.
 func (p *ProviderConfigUsage) SetProviderConfigReference(r xpv1.ProviderConfigReference) {
-	p.ProviderConfigUsage.ProviderConfigReference.Name = r.Name
+	p.ProviderConfigReference.Name = r.Name
 }
 
 // GetResourceReference returns the resource reference for this ProviderConfigUsage.
 func (p *ProviderConfigUsage) GetResourceReference() xpv1.TypedReference {
-	return p.ProviderConfigUsage.ResourceReference
+	return p.ResourceReference
 }
 
 // SetResourceReference sets the resource reference for this ProviderConfigUsage.
 func (p *ProviderConfigUsage) SetResourceReference(r xpv1.TypedReference) {
-	p.ProviderConfigUsage.ResourceReference = r
+	p.ResourceReference = r
 }
 
 func init() {
