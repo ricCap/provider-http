@@ -124,4 +124,5 @@ spec:
             responseJQ: .body.age
 
   providerConfigRef:
+    kind: ProviderConfig
     name: http-conf

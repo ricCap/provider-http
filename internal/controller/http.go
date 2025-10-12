@@ -19,11 +19,13 @@ package controller
 import (
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/crossplane-contrib/provider-http/internal/controller/config"
 	disposablerequest "github.com/crossplane-contrib/provider-http/internal/controller/disposablerequest"
+	namespaceddisposablerequest "github.com/crossplane-contrib/provider-http/internal/controller/namespaceddisposablerequest"
+	namespacedrequest "github.com/crossplane-contrib/provider-http/internal/controller/namespacedrequest"
 	request "github.com/crossplane-contrib/provider-http/internal/controller/request"
 )
 
@@ -34,6 +36,8 @@ func Setup(mgr ctrl.Manager, o controller.Options, timeout time.Duration) error 
 		config.Setup,
 		disposablerequest.Setup,
 		request.Setup,
+		namespacedrequest.Setup,
+		namespaceddisposablerequest.Setup,
 	} {
 		if err := setup(mgr, o, timeout); err != nil {
 			return err

@@ -1,0 +1,15 @@
+apiVersion: http.crossplane.io/v1alpha2
+kind: NamespacedRequest
+metadata:
+  name: example-namespaced-request
+  namespace: default
+spec:
+  forProvider:
+    mappings:
+    - method: "GET"
+      url: "https://httpbin.org/get"
+    payload:
+      baseUrl: "https://httpbin.org"
+  providerConfigRef:
+    kind: ProviderConfig
+    name: http-conf

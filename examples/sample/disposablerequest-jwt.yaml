@@ -32,5 +32,6 @@ spec:
         # When injecting multiple keys into the same secret, ensure this field is set consistently for all keys.        
         setOwnerReference: true
   providerConfigRef:
+    kind: ProviderConfig
     name: http-conf
 # TODO: check if it's possible to modify the deletionPolicy to be orphan by default.

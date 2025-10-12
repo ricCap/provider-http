@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 )
 
 // +kubebuilder:object:root=true
@@ -61,6 +61,28 @@ var (
 	ProviderConfigUsageListKindAPIVersion   = ProviderConfigUsageListKind + "." + SchemeGroupVersion.String()
 	ProviderConfigUsageListGroupVersionKind = SchemeGroupVersion.WithKind(ProviderConfigUsageListKind)
 )
+
+// GetProviderConfigReference returns the provider config reference for this ProviderConfigUsage.
+func (p *ProviderConfigUsage) GetProviderConfigReference() xpv1.ProviderConfigReference {
+	return xpv1.ProviderConfigReference{
+		Name: p.ProviderConfigUsage.ProviderConfigReference.Name,
+	}
+}
+
+// SetProviderConfigReference sets the provider config reference for this ProviderConfigUsage.
+func (p *ProviderConfigUsage) SetProviderConfigReference(r xpv1.ProviderConfigReference) {
+	p.ProviderConfigUsage.ProviderConfigReference.Name = r.Name
+}
+
+// GetResourceReference returns the resource reference for this ProviderConfigUsage.
+func (p *ProviderConfigUsage) GetResourceReference() xpv1.TypedReference {
+	return p.ProviderConfigUsage.ResourceReference
+}
+
+// SetResourceReference sets the resource reference for this ProviderConfigUsage.
+func (p *ProviderConfigUsage) SetResourceReference(r xpv1.TypedReference) {
+	p.ProviderConfigUsage.ResourceReference = r
+}
 
 func init() {
 	SchemeBuilder.Register(&ProviderConfigUsage{}, &ProviderConfigUsageList{})
