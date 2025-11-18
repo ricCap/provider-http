@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/crossplane-contrib/provider-http/apis/cluster/disposablerequest/v1alpha2"
+	"github.com/crossplane-contrib/provider-http/apis/common"
 	httpClient "github.com/crossplane-contrib/provider-http/internal/clients/http"
 	"github.com/crossplane-contrib/provider-http/internal/service"
 	"github.com/crossplane-contrib/provider-http/internal/service/disposablerequest"
@@ -107,14 +108,25 @@ func httpDisposableRequest(rm ...httpDisposableRequestModifier) *v1alpha2.Dispos
 	return r
 }
 
-type MockSendRequestFn func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error)
+type MockSendRequestFn func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error)
+
+type MockSendRequestWithTLSFn func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfig *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error)
 
 type MockHttpClient struct {
-	MockSendRequest MockSendRequestFn
+	MockSendRequest        MockSendRequestFn
+	MockSendRequestWithTLS MockSendRequestWithTLSFn
 }
 
-func (c *MockHttpClient) SendRequest(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
-	return c.MockSendRequest(ctx, method, url, body, headers, skipTLSVerify)
+func (c *MockHttpClient) SendRequest(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
+	return c.MockSendRequest(ctx, method, url, body, headers, tlsConfigData)
+}
+
+func (c *MockHttpClient) SendRequestWithTLS(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfig *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
+	if c.MockSendRequestWithTLS != nil {
+		return c.MockSendRequestWithTLS(ctx, method, url, body, headers, tlsConfig)
+	}
+	// Fallback to SendRequest for backward compatibility
+	return c.MockSendRequest(ctx, method, url, body, headers, tlsConfig)
 }
 
 type notHttpDisposableRequest struct {
@@ -150,7 +162,7 @@ func Test_httpExternal_Create(t *testing.T) {
 			name: "DisposableRequestFailed",
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{}, errBoom
 					},
 				},
@@ -169,7 +181,7 @@ func Test_httpExternal_Create(t *testing.T) {
 			name: "Success",
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{}, nil
 					},
 				},
@@ -230,7 +242,7 @@ func Test_httpExternal_Update(t *testing.T) {
 			name: "DisposableRequestFailed",
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{}, errBoom
 					},
 				},
@@ -248,7 +260,7 @@ func Test_httpExternal_Update(t *testing.T) {
 			name: "Success",
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{}, nil
 					},
 				},
@@ -438,7 +450,7 @@ func Test_deployAction(t *testing.T) {
 		"SuccessUpdateStatusRequestFailure": {
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{}, errors.Errorf(utils.ErrInvalidURL, "invalid-url")
 					},
 				},
@@ -466,7 +478,7 @@ func Test_deployAction(t *testing.T) {
 		"SuccessUpdateStatusCodeError": {
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{
 							HttpResponse: httpClient.HttpResponse{
 								StatusCode: 400,
@@ -502,7 +514,7 @@ func Test_deployAction(t *testing.T) {
 		"SuccessUpdateStatusSuccessfulRequest": {
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{
 							HttpResponse: httpClient.HttpResponse{
 								StatusCode: 200,
@@ -544,6 +556,7 @@ func Test_deployAction(t *testing.T) {
 				tc.args.localKube,
 				logging.NewNopLogger(),
 				tc.args.http,
+				nil,
 			)
 			crCtx := service.NewDisposableRequestCRContext(
 				tc.args.cr,
@@ -872,6 +885,155 @@ func TestObserve_DeletionMonitoring(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTLSConfiguration(t *testing.T) {
+	type args struct {
+		http      httpClient.Client
+		localKube client.Client
+		mg        resource.Managed
+	}
+	type want struct {
+		err error
+	}
+
+	cases := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			name: "TLSConfigAcceptedWithNilTLS",
+			args: args{
+				http: &MockHttpClient{
+					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
+						// Accept any TLS config - the actual TLS config loading is handled by the service layer
+						return httpClient.HttpDetails{
+							HttpResponse: httpClient.HttpResponse{
+								StatusCode: 200,
+								Body:       `{"result": "success"}`,
+							},
+						}, nil
+					},
+				},
+				localKube: &test.MockClient{
+					MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil),
+					MockGet:          test.NewMockGetFn(nil),
+				},
+				mg: clusterDisposableRequestWithTLS(),
+			},
+			want: want{
+				err: nil,
+			},
+		},
+		{
+			name: "InsecureSkipTLSVerifyAccepted",
+			args: args{
+				http: &MockHttpClient{
+					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
+						// Accept any TLS config - the controller should handle insecure skip verify
+						return httpClient.HttpDetails{
+							HttpResponse: httpClient.HttpResponse{
+								StatusCode: 200,
+								Body:       `{"result": "insecure success"}`,
+							},
+						}, nil
+					},
+				},
+				localKube: &test.MockClient{
+					MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil),
+					MockGet:          test.NewMockGetFn(nil),
+				},
+				mg: clusterDisposableRequestWithInsecureSkipTLS(),
+			},
+			want: want{
+				err: nil,
+			},
+		},
+		{
+			name: "TLSConfigWithClientCertsAccepted",
+			args: args{
+				http: &MockHttpClient{
+					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
+						// Accept any TLS config - the service layer handles TLS config merging
+						return httpClient.HttpDetails{
+							HttpResponse: httpClient.HttpResponse{
+								StatusCode: 200,
+								Body:       `{"result": "client cert success"}`,
+							},
+						}, nil
+					},
+				},
+				localKube: &test.MockClient{
+					MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil),
+					MockGet:          test.NewMockGetFn(nil),
+				},
+				mg: clusterDisposableRequestWithResourceTLS(),
+			},
+			want: want{
+				err: nil,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := &external{
+				logger:    logging.NewNopLogger(),
+				localKube: tc.args.localKube,
+				http:      tc.args.http,
+			}
+
+			_, err := e.Create(context.Background(), tc.args.mg)
+			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
+				t.Errorf("Create(...): -want error, +got error: %s", diff)
+			}
+		})
+	}
+}
+
+// clusterDisposableRequestWithTLS creates a DisposableRequest with TLS configuration
+func clusterDisposableRequestWithTLS() *v1alpha2.DisposableRequest {
+	return httpDisposableRequest(func(cr *v1alpha2.DisposableRequest) {
+		cr.Spec.ForProvider.TLSConfig = &common.TLSConfig{
+			CACertSecretRef: &xpv1.SecretKeySelector{
+				SecretReference: xpv1.SecretReference{
+					Name:      "ca-cert-secret",
+					Namespace: "default",
+				},
+				Key: "ca.crt",
+			},
+		}
+	})
+}
+
+// clusterDisposableRequestWithInsecureSkipTLS creates a DisposableRequest with insecureSkipTLSVerify
+func clusterDisposableRequestWithInsecureSkipTLS() *v1alpha2.DisposableRequest {
+	return httpDisposableRequest(func(cr *v1alpha2.DisposableRequest) {
+		cr.Spec.ForProvider.InsecureSkipTLSVerify = true
+	})
+}
+
+// clusterDisposableRequestWithResourceTLS creates a DisposableRequest with resource-level TLS config
+func clusterDisposableRequestWithResourceTLS() *v1alpha2.DisposableRequest {
+	return httpDisposableRequest(func(cr *v1alpha2.DisposableRequest) {
+		cr.Spec.ForProvider.TLSConfig = &common.TLSConfig{
+			ClientCertSecretRef: &xpv1.SecretKeySelector{
+				SecretReference: xpv1.SecretReference{
+					Name:      "client-cert-secret",
+					Namespace: "default",
+				},
+				Key: "tls.crt",
+			},
+			ClientKeySecretRef: &xpv1.SecretKeySelector{
+				SecretReference: xpv1.SecretReference{
+					Name:      "client-cert-secret",
+					Namespace: "default",
+				},
+				Key: "tls.key",
+			},
+		}
+	})
 }
 
 func TestDisposableRequestManagementPolicies(t *testing.T) {

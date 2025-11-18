@@ -37,6 +37,7 @@ import (
 
 	"github.com/crossplane-contrib/provider-http/apis/namespaced/disposablerequest/v1alpha2"
 	apisv1alpha2 "github.com/crossplane-contrib/provider-http/apis/namespaced/v1alpha2"
+	"github.com/crossplane-contrib/provider-http/apis/common"
 	httpClient "github.com/crossplane-contrib/provider-http/internal/clients/http"
 	"github.com/crossplane-contrib/provider-http/internal/service"
 	"github.com/crossplane-contrib/provider-http/internal/service/disposablerequest"
@@ -122,6 +123,7 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 	}
 
 	var cd apisv1alpha2.ProviderCredentials
+	var providerTLS *common.TLSConfig
 
 	// Switch to ModernManaged resource to get ProviderConfigRef
 	m := mg.(resource.ModernManaged)
@@ -134,12 +136,14 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 			return nil, errors.Wrap(err, errGetPC)
 		}
 		cd = pc.Spec.Credentials
+		providerTLS = pc.Spec.TLS
 	case "ClusterProviderConfig":
 		cpc := &apisv1alpha2.ClusterProviderConfig{}
 		if err := c.kube.Get(ctx, types.NamespacedName{Name: ref.Name}, cpc); err != nil {
 			return nil, errors.Wrap(err, errGetCPC)
 		}
 		cd = cpc.Spec.Credentials
+		providerTLS = cpc.Spec.TLS
 	default:
 		return nil, errors.Errorf("unsupported provider config kind: %s", ref.Kind)
 	}
@@ -158,17 +162,36 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		return nil, errors.Wrap(err, errNewHttpClient)
 	}
 
+	// Merge TLS configs: resource-level overrides provider-level
+	mergedTLSConfig := httpClient.MergeTLSConfigs(cr.Spec.ForProvider.TLSConfig, providerTLS)
+
+	// Apply InsecureSkipTLSVerify from DisposableRequest spec if set
+	if cr.Spec.ForProvider.InsecureSkipTLSVerify {
+		if mergedTLSConfig == nil {
+			mergedTLSConfig = &common.TLSConfig{}
+		}
+		mergedTLSConfig.InsecureSkipVerify = true
+	}
+
+	// Load TLS configuration from secrets
+	tlsConfigData, err := httpClient.LoadTLSConfig(ctx, c.kube, mergedTLSConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load TLS configuration")
+	}
+
 	return &external{
-		localKube: c.kube,
-		logger:    l,
-		http:      h,
+		localKube:     c.kube,
+		logger:        l,
+		http:          h,
+		tlsConfigData: tlsConfigData,
 	}, nil
 }
 
 type external struct {
-	localKube client.Client
-	logger    logging.Logger
-	http      httpClient.Client
+	localKube     client.Client
+	logger        logging.Logger
+	http          httpClient.Client
+	tlsConfigData *httpClient.TLSConfigData
 }
 
 // Observe checks the state of the DisposableRequest resource and updates its status accordingly.
@@ -196,7 +219,7 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		}, nil
 	}
 
-	svcCtx := service.NewServiceContext(ctx, c.localKube, c.logger, c.http)
+	svcCtx := service.NewServiceContext(ctx, c.localKube, c.logger, c.http, c.tlsConfigData)
 	crCtx := service.NewDisposableRequestCRContext(cr)
 	isExpected, storedResponse, err := disposablerequest.ValidateStoredResponse(svcCtx, crCtx)
 	if err != nil {
@@ -235,7 +258,7 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalCreation{}, err
 	}
 
-	svcCtx := service.NewServiceContext(ctx, c.localKube, c.logger, c.http)
+	svcCtx := service.NewServiceContext(ctx, c.localKube, c.logger, c.http, c.tlsConfigData)
 	crCtx := service.NewDisposableRequestCRContext(cr)
 	return managed.ExternalCreation{}, errors.Wrap(disposablerequest.DeployAction(svcCtx, crCtx), errFailedToSendHttpDisposableRequest)
 }
@@ -250,7 +273,7 @@ func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalUpdate{}, err
 	}
 
-	svcCtx := service.NewServiceContext(ctx, c.localKube, c.logger, c.http)
+	svcCtx := service.NewServiceContext(ctx, c.localKube, c.logger, c.http, c.tlsConfigData)
 	crCtx := service.NewDisposableRequestCRContext(cr)
 	return managed.ExternalUpdate{}, errors.Wrap(disposablerequest.DeployAction(svcCtx, crCtx), errFailedToSendHttpDisposableRequest)
 }

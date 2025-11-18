@@ -23,7 +23,7 @@ func DeployAction(svcCtx *service.ServiceContext, crCtx *service.RequestCRContex
 		return err
 	}
 
-	details, sendErr := svcCtx.HTTP.SendRequest(svcCtx.Ctx, requestmapping.GetEffectiveMethod(mapping), requestDetails.Url, requestDetails.Body, requestDetails.Headers, spec.GetInsecureSkipTLSVerify())
+	details, sendErr := svcCtx.HTTP.SendRequest(svcCtx.Ctx, requestmapping.GetEffectiveMethod(mapping), requestDetails.Url, requestDetails.Body, requestDetails.Headers, svcCtx.TLSConfigData)
 
 	// Skip secret injection during deletion to avoid cross-namespace owner reference issues
 	if !meta.WasDeleted(crCtx.GetCR()) {

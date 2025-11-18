@@ -8,6 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/crossplane-contrib/provider-http/apis/cluster/request/v1alpha2"
+	"github.com/crossplane-contrib/provider-http/apis/common"
 	httpClient "github.com/crossplane-contrib/provider-http/internal/clients/http"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
@@ -103,14 +104,25 @@ type notHttpRequest struct {
 	resource.Managed
 }
 
-type MockSendRequestFn func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error)
+type MockSendRequestFn func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error)
+
+type MockSendRequestWithTLSFn func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfig *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error)
 
 type MockHttpClient struct {
-	MockSendRequest MockSendRequestFn
+	MockSendRequest        MockSendRequestFn
+	MockSendRequestWithTLS MockSendRequestWithTLSFn
 }
 
-func (c *MockHttpClient) SendRequest(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
-	return c.MockSendRequest(ctx, method, url, body, headers, skipTLSVerify)
+func (c *MockHttpClient) SendRequest(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
+	return c.MockSendRequest(ctx, method, url, body, headers, tlsConfigData)
+}
+
+func (c *MockHttpClient) SendRequestWithTLS(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfig *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
+	if c.MockSendRequestWithTLS != nil {
+		return c.MockSendRequestWithTLS(ctx, method, url, body, headers, tlsConfig)
+	}
+	// Fallback to SendRequest for backward compatibility
+	return c.MockSendRequest(ctx, method, url, body, headers, tlsConfig)
 }
 
 type MockSetRequestStatusFn func() error
@@ -160,7 +172,7 @@ func Test_httpExternal_Create(t *testing.T) {
 			name: "RequestFailed",
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{}, errBoom
 					},
 				},
@@ -178,7 +190,7 @@ func Test_httpExternal_Create(t *testing.T) {
 			name: "Success",
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{}, nil
 					},
 				},
@@ -239,7 +251,7 @@ func Test_httpExternal_Update(t *testing.T) {
 			name: "RequestFailed",
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{}, errBoom
 					},
 				},
@@ -257,7 +269,7 @@ func Test_httpExternal_Update(t *testing.T) {
 			name: "Success",
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{}, nil
 					},
 				},
@@ -318,7 +330,7 @@ func Test_httpExternal_Delete(t *testing.T) {
 			name: "RequestFailed",
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{}, errBoom
 					},
 				},
@@ -336,7 +348,7 @@ func Test_httpExternal_Delete(t *testing.T) {
 			name: "Success",
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{}, nil
 					},
 				},
@@ -398,7 +410,7 @@ func Test_httpExternal_Observe(t *testing.T) {
 			name: "ResourceUpToDate",
 			args: args{
 				http: &MockHttpClient{
-					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, skipTLSVerify bool) (resp httpClient.HttpDetails, err error) {
+					MockSendRequest: func(ctx context.Context, method string, url string, body httpClient.Data, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
 						return httpClient.HttpDetails{
 							HttpResponse: httpClient.HttpResponse{
 								StatusCode: 200,
@@ -812,6 +824,162 @@ func httpRequestWithDeletion() *v1alpha2.Request {
 	now := v1.Now()
 	return httpRequest(func(r *v1alpha2.Request) {
 		r.DeletionTimestamp = &now
+	})
+}
+
+func TestTLSConfiguration(t *testing.T) {
+	type args struct {
+		http      httpClient.Client
+		localKube client.Client
+		mg        resource.Managed
+	}
+	type want struct {
+		err error
+	}
+
+	cases := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			name: "TLSConfigAcceptedWithNilTLS",
+			args: args{
+				http: &MockHttpClient{
+					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
+						// Accept any TLS config - the actual TLS config loading is handled by the service layer
+						return httpClient.HttpDetails{
+							HttpResponse: httpClient.HttpResponse{
+								StatusCode: 200,
+								Body:       `{"result": "success"}`,
+							},
+						}, nil
+					},
+				},
+				localKube: &test.MockClient{
+					MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil),
+					MockGet:          test.NewMockGetFn(nil),
+				},
+				mg: clusterRequestWithTLS(),
+			},
+			want: want{
+				err: nil,
+			},
+		},
+		{
+			name: "InsecureSkipTLSVerifyAccepted",
+			args: args{
+				http: &MockHttpClient{
+					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
+						// Accept any TLS config - the controller should handle insecure skip verify
+						return httpClient.HttpDetails{
+							HttpResponse: httpClient.HttpResponse{
+								StatusCode: 200,
+								Body:       `{"result": "insecure success"}`,
+							},
+						}, nil
+					},
+				},
+				localKube: &test.MockClient{
+					MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil),
+					MockGet:          test.NewMockGetFn(nil),
+				},
+				mg: clusterRequestWithInsecureSkipTLS(),
+			},
+			want: want{
+				err: nil,
+			},
+		},
+		{
+			name: "TLSConfigWithClientCertsAccepted",
+			args: args{
+				http: &MockHttpClient{
+					MockSendRequest: func(ctx context.Context, method string, url string, body, headers httpClient.Data, tlsConfigData *httpClient.TLSConfigData) (resp httpClient.HttpDetails, err error) {
+						// Accept any TLS config - the service layer handles TLS config merging
+						return httpClient.HttpDetails{
+							HttpResponse: httpClient.HttpResponse{
+								StatusCode: 200,
+								Body:       `{"result": "client cert success"}`,
+							},
+						}, nil
+					},
+				},
+				localKube: &test.MockClient{
+					MockStatusUpdate: test.NewMockSubResourceUpdateFn(nil),
+					MockGet:          test.NewMockGetFn(nil),
+				},
+				mg: clusterRequestWithMutualTLS(),
+			},
+			want: want{
+				err: nil,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := &external{
+				logger:    logging.NewNopLogger(),
+				localKube: tc.args.localKube,
+				http:      tc.args.http,
+			}
+
+			_, err := e.Create(context.Background(), tc.args.mg)
+			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
+				t.Errorf("Create(...): -want error, +got error: %s", diff)
+			}
+		})
+	}
+}
+
+// clusterRequestWithTLS creates a Request with TLS configuration
+func clusterRequestWithTLS() *v1alpha2.Request {
+	return httpRequest(func(cr *v1alpha2.Request) {
+		cr.Spec.ForProvider.TLSConfig = &common.TLSConfig{
+			CACertSecretRef: &xpv1.SecretKeySelector{
+				SecretReference: xpv1.SecretReference{
+					Name:      "ca-cert-secret",
+					Namespace: "default",
+				},
+				Key: "ca.crt",
+			},
+		}
+	})
+}
+
+// clusterRequestWithInsecureSkipTLS creates a Request with insecureSkipTLSVerify
+func clusterRequestWithInsecureSkipTLS() *v1alpha2.Request {
+	return httpRequest(func(cr *v1alpha2.Request) {
+		cr.Spec.ForProvider.InsecureSkipTLSVerify = true
+	})
+}
+
+// clusterRequestWithMutualTLS creates a Request with mutual TLS configuration
+func clusterRequestWithMutualTLS() *v1alpha2.Request {
+	return httpRequest(func(cr *v1alpha2.Request) {
+		cr.Spec.ForProvider.TLSConfig = &common.TLSConfig{
+			CACertSecretRef: &xpv1.SecretKeySelector{
+				SecretReference: xpv1.SecretReference{
+					Name:      "ca-cert-secret",
+					Namespace: "default",
+				},
+				Key: "ca.crt",
+			},
+			ClientCertSecretRef: &xpv1.SecretKeySelector{
+				SecretReference: xpv1.SecretReference{
+					Name:      "client-cert-secret",
+					Namespace: "default",
+				},
+				Key: "tls.crt",
+			},
+			ClientKeySecretRef: &xpv1.SecretKeySelector{
+				SecretReference: xpv1.SecretReference{
+					Name:      "client-cert-secret",
+					Namespace: "default",
+				},
+				Key: "tls.key",
+			},
+		}
 	})
 }
 

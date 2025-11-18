@@ -22,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/crossplane-contrib/provider-http/apis/common"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 )
@@ -33,6 +34,10 @@ var _ resource.ProviderConfig = &ProviderConfig{}
 type ProviderConfigSpec struct {
 	// Credentials required to authenticate to this provider.
 	Credentials ProviderCredentials `json:"credentials"`
+
+	// TLS configuration for HTTPS requests.
+	// +optional
+	TLS *common.TLSConfig `json:"tls,omitempty"`
 }
 
 // ProviderCredentials required to authenticate.
